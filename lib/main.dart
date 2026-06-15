@@ -125,6 +125,178 @@ class GrainPainter extends CustomPainter {
 }
 
 // ─────────────────────────────────────────────
+// Premium Analog Clock Widget
+// ─────────────────────────────────────────────
+class AnalogClock extends StatefulWidget {
+  const AnalogClock({super.key});
+
+  @override
+  State<AnalogClock> createState() => _AnalogClockState();
+}
+
+class _AnalogClockState extends State<AnalogClock> with SingleTickerProviderStateMixin {
+  late AnimationController _ticker;
+
+  @override
+  void initState() {
+    super.initState();
+    _ticker = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 1),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _ticker.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      size: const Size(180, 180),
+      painter: AnalogClockPainter(repaint: _ticker),
+    );
+  }
+}
+
+class AnalogClockPainter extends CustomPainter {
+  AnalogClockPainter({required Listenable repaint}) : super(repaint: repaint);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = math.min(size.width, size.height) / 2;
+
+    // 1. Draw outer glowing clock face / plate (Dark glassmorphism style)
+    final paintPlate = Paint()
+      ..color = const Color(0xFF141414) // Dark card color
+      ..style = PaintingStyle.fill;
+    
+    // Draw subtle outer shadow/glow
+    final paintGlow = Paint()
+      ..color = kAccent.withValues(alpha: 0.04)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.outer, 12);
+    canvas.drawCircle(center, radius, paintGlow);
+    canvas.drawCircle(center, radius, paintPlate);
+
+    // Draw thin elegant border
+    final paintBorder = Paint()
+      ..color = const Color(0xFF1C1C1C)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5;
+    canvas.drawCircle(center, radius, paintBorder);
+    
+    // Draw an inner accent ring for visual depth
+    final paintInnerRing = Paint()
+      ..color = const Color(0xFF222222)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0;
+    canvas.drawCircle(center, radius * 0.9, paintInnerRing);
+
+    // 2. Draw Ticks (Hours and Minutes)
+    final tickPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+
+    for (int i = 0; i < 60; i++) {
+      final double angle = i * 6 * math.pi / 180;
+      final bool isHour = i % 5 == 0;
+      
+      final double startRadius = radius * (isHour ? 0.78 : 0.84);
+      final double endRadius = radius * 0.88;
+      
+      tickPaint.color = isHour 
+          ? kAccent.withValues(alpha: 0.6) 
+          : const Color(0xFF333333);
+      tickPaint.strokeWidth = isHour ? 2.0 : 1.0;
+
+      final startOffset = Offset(
+        center.dx + startRadius * math.cos(angle - math.pi / 2),
+        center.dy + startRadius * math.sin(angle - math.pi / 2),
+      );
+      final endOffset = Offset(
+        center.dx + endRadius * math.cos(angle - math.pi / 2),
+        center.dy + endRadius * math.sin(angle - math.pi / 2),
+      );
+      canvas.drawLine(startOffset, endOffset, tickPaint);
+    }
+
+    // 3. Get exact time (including milliseconds for sweeping second hand)
+    final now = DateTime.now();
+    final double milli = now.millisecond.toDouble();
+    final double second = now.second + milli / 1000.0;
+    final double minute = now.minute + second / 60.0;
+    final double hour = (now.hour % 12) + minute / 60.0;
+
+    // 4. Draw Hour Hand (Bold, short, matte white)
+    final hourAngle = (hour * 30) * math.pi / 180 - math.pi / 2;
+    final hourHandLength = radius * 0.48;
+    final hourPaint = Paint()
+      ..color = Colors.white
+      ..strokeWidth = 4.5
+      ..strokeCap = StrokeCap.round;
+    
+    final hourEnd = Offset(
+      center.dx + hourHandLength * math.cos(hourAngle),
+      center.dy + hourHandLength * math.sin(hourAngle),
+    );
+    canvas.drawLine(center, hourEnd, hourPaint);
+
+    // 5. Draw Minute Hand (Sleek, medium-long, light grey/white)
+    final minuteAngle = (minute * 6) * math.pi / 180 - math.pi / 2;
+    final minuteHandLength = radius * 0.68;
+    final minutePaint = Paint()
+      ..color = const Color(0xFFDDDDDD)
+      ..strokeWidth = 2.5
+      ..strokeCap = StrokeCap.round;
+    
+    final minuteEnd = Offset(
+      center.dx + minuteHandLength * math.cos(minuteAngle),
+      center.dy + minuteHandLength * math.sin(minuteAngle),
+    );
+    canvas.drawLine(center, minuteEnd, minutePaint);
+
+    // 6. Draw Second Hand (Thin, sweeping orange, with tail)
+    final secondAngle = (second * 6) * math.pi / 180 - math.pi / 2;
+    final secondHandLength = radius * 0.78;
+    final secondTailLength = radius * 0.15;
+    
+    final secondPaint = Paint()
+      ..color = kAccent
+      ..strokeWidth = 1.5
+      ..strokeCap = StrokeCap.square;
+
+    final secondEnd = Offset(
+      center.dx + secondHandLength * math.cos(secondAngle),
+      center.dy + secondHandLength * math.sin(secondAngle),
+    );
+    final secondTail = Offset(
+      center.dx - secondTailLength * math.cos(secondAngle),
+      center.dy - secondTailLength * math.sin(secondAngle),
+    );
+    
+    canvas.drawLine(secondTail, secondEnd, secondPaint);
+
+    // 7. Draw Pinion Center Cap (Glowing orange center dot)
+    final centerCapPaint = Paint()
+      ..color = kAccent
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(center, 4.5, centerCapPaint);
+
+    // Draw tiny inner metal pin
+    final centerPinPaint = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(center, 1.5, centerPinPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant AnalogClockPainter oldDelegate) => true;
+}
+
+// ─────────────────────────────────────────────
 // Audio Player Singleton
 // ─────────────────────────────────────────────
 class AlarmAudio {
@@ -223,6 +395,7 @@ class _AlarmHomeScreenState extends State<AlarmHomeScreen>
     with TickerProviderStateMixin {
   late Timer _clockTimer;
   late Timer _alarmCheckTimer;
+  late Timer _grainTimer;
   DateTime _now = DateTime.now();
   int _selectedNavIndex = 0;
   int _grainSeed = 0;
@@ -246,7 +419,7 @@ class _AlarmHomeScreenState extends State<AlarmHomeScreen>
     });
 
     // Slightly change grain seed every 4 seconds for subtle animation
-    Timer.periodic(const Duration(seconds: 4), (_) {
+    _grainTimer = Timer.periodic(const Duration(seconds: 4), (_) {
       if (mounted) setState(() => _grainSeed = math.Random().nextInt(9999));
     });
 
@@ -390,6 +563,7 @@ class _AlarmHomeScreenState extends State<AlarmHomeScreen>
   void dispose() {
     _clockTimer.cancel();
     _alarmCheckTimer.cancel();
+    _grainTimer.cancel();
     _pulseController.dispose();
     super.dispose();
   }
@@ -490,7 +664,9 @@ class _AlarmHomeScreenState extends State<AlarmHomeScreen>
               ],
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 24),
+          const AnalogClock(),
+          const SizedBox(height: 24),
           AnimatedBuilder(
             animation: _pulseAnim,
             builder: (context, _) => Opacity(
