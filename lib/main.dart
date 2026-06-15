@@ -7,297 +7,22 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:just_audio/just_audio.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:provider/provider.dart';
 
 // ─────────────────────────────────────────────
-// Constants
+// Design System / Constants
 // ─────────────────────────────────────────────
-const Color kBackground = Color(0xFF0D0D0D);
-const Color kCard = Color(0xFF141414);
-const Color kAccent = Color(0xFFFF6B2B);
-const Color kAccentGlow = Color(0x18FF6B2B);
-const Color kAccentBorder = Color(0x33FF6B2B);
-const Color kDim = Color(0xFF444444);
-const Color kDimmer = Color(0xFF333333);
-const Color kMuted = Color(0xFF666666);
-const Color kPill = Color(0xFF222222);
-
-// ─────────────────────────────────────────────
-// Alarm Model
-// ─────────────────────────────────────────────
-class AlarmModel {
-  final int id;
-  final TimeOfDay time;
-  bool isActive;
-
-  AlarmModel({required this.id, required this.time, this.isActive = true});
-
-  String get label {
-    final h = time.hourOfPeriod == 0 ? 12 : time.hourOfPeriod;
-    final m = time.minute.toString().padLeft(2, '0');
-    final period = time.period == DayPeriod.am ? 'AM' : 'PM';
-    return '$h:$m $period';
-  }
-}
+const Color kBackground = Color(0xFF070709);
+const Color kCardColor = Color(0xFF121217);
+const Color kAccent = Color(0xFFFF4B2B);
+const Color kAccentGlow = Color(0x22FF4B2B);
+const Color kAccentBorder = Color(0x44FF4B2B);
+const Color kSuccess = Color(0xFF34C759);
+const Color kMuted = Color(0xFF555566);
+const Color kDim = Color(0xFF333344);
 
 // ─────────────────────────────────────────────
-// App State (Provider)
-// ─────────────────────────────────────────────
-class AlarmState extends ChangeNotifier {
-  final List<AlarmModel> alarms = [];
-  int _nextId = 1;
-
-  AlarmModel addAlarm(TimeOfDay time) {
-    final alarm = AlarmModel(id: _nextId++, time: time);
-    alarms.add(alarm);
-    notifyListeners();
-    return alarm;
-  }
-
-  void toggleAlarm(int id) {
-    final idx = alarms.indexWhere((a) => a.id == id);
-    if (idx != -1) {
-      alarms[idx].isActive = !alarms[idx].isActive;
-      notifyListeners();
-    }
-  }
-
-  void removeAlarm(int id) {
-    alarms.removeWhere((a) => a.id == id);
-    notifyListeners();
-  }
-}
-
-// ─────────────────────────────────────────────
-// Notifications Service
-// ─────────────────────────────────────────────
-final FlutterLocalNotificationsPlugin _notificationsPlugin =
-    FlutterLocalNotificationsPlugin();
-
-Future<void> initNotifications() async {
-  if (kIsWeb) return;
-  const AndroidInitializationSettings androidSettings =
-      AndroidInitializationSettings('@mipmap/ic_launcher');
-  const DarwinInitializationSettings iosSettings =
-      DarwinInitializationSettings(
-    requestAlertPermission: true,
-    requestBadgePermission: true,
-    requestSoundPermission: true,
-  );
-  const InitializationSettings initSettings = InitializationSettings(
-    android: androidSettings,
-    iOS: iosSettings,
-  );
-  await _notificationsPlugin.initialize(initSettings);
-}
-
-Future<void> scheduleAlarmNotification(AlarmModel alarm) async {
-  // For demonstration, we use periodic checks in the app itself.
-  // flutter_local_notifications is initialized and ready.
-  // Real scheduling would require timezone package — simplified here.
-}
-
-// ─────────────────────────────────────────────
-// Grain/Noise Texture Painter
-// ─────────────────────────────────────────────
-class GrainPainter extends CustomPainter {
-  final double opacity;
-  final int seed;
-  GrainPainter({this.opacity = 0.035, this.seed = 0});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final rng = math.Random(seed);
-    final paint = Paint()..style = PaintingStyle.fill;
-    for (int i = 0; i < 6000; i++) {
-      final x = rng.nextDouble() * size.width;
-      final y = rng.nextDouble() * size.height;
-      final alpha = (rng.nextDouble() * opacity * 255).toInt().clamp(0, 255);
-      paint.color = Color.fromARGB(alpha, 255, 255, 255);
-      canvas.drawCircle(Offset(x, y), 0.6, paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(GrainPainter old) => old.seed != seed;
-}
-
-// ─────────────────────────────────────────────
-// Premium Analog Clock Widget
-// ─────────────────────────────────────────────
-class AnalogClock extends StatefulWidget {
-  const AnalogClock({super.key});
-
-  @override
-  State<AnalogClock> createState() => _AnalogClockState();
-}
-
-class _AnalogClockState extends State<AnalogClock> with SingleTickerProviderStateMixin {
-  late AnimationController _ticker;
-
-  @override
-  void initState() {
-    super.initState();
-    _ticker = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 1),
-    )..repeat();
-  }
-
-  @override
-  void dispose() {
-    _ticker.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return CustomPaint(
-      size: const Size(180, 180),
-      painter: AnalogClockPainter(repaint: _ticker),
-    );
-  }
-}
-
-class AnalogClockPainter extends CustomPainter {
-  AnalogClockPainter({required Listenable repaint}) : super(repaint: repaint);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = math.min(size.width, size.height) / 2;
-
-    // 1. Draw outer glowing clock face / plate (Dark glassmorphism style)
-    final paintPlate = Paint()
-      ..color = const Color(0xFF141414) // Dark card color
-      ..style = PaintingStyle.fill;
-    
-    // Draw subtle outer shadow/glow
-    final paintGlow = Paint()
-      ..color = kAccent.withValues(alpha: 0.04)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.outer, 12);
-    canvas.drawCircle(center, radius, paintGlow);
-    canvas.drawCircle(center, radius, paintPlate);
-
-    // Draw thin elegant border
-    final paintBorder = Paint()
-      ..color = const Color(0xFF1C1C1C)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5;
-    canvas.drawCircle(center, radius, paintBorder);
-    
-    // Draw an inner accent ring for visual depth
-    final paintInnerRing = Paint()
-      ..color = const Color(0xFF222222)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.0;
-    canvas.drawCircle(center, radius * 0.9, paintInnerRing);
-
-    // 2. Draw Ticks (Hours and Minutes)
-    final tickPaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-
-    for (int i = 0; i < 60; i++) {
-      final double angle = i * 6 * math.pi / 180;
-      final bool isHour = i % 5 == 0;
-      
-      final double startRadius = radius * (isHour ? 0.78 : 0.84);
-      final double endRadius = radius * 0.88;
-      
-      tickPaint.color = isHour 
-          ? kAccent.withValues(alpha: 0.6) 
-          : const Color(0xFF333333);
-      tickPaint.strokeWidth = isHour ? 2.0 : 1.0;
-
-      final startOffset = Offset(
-        center.dx + startRadius * math.cos(angle - math.pi / 2),
-        center.dy + startRadius * math.sin(angle - math.pi / 2),
-      );
-      final endOffset = Offset(
-        center.dx + endRadius * math.cos(angle - math.pi / 2),
-        center.dy + endRadius * math.sin(angle - math.pi / 2),
-      );
-      canvas.drawLine(startOffset, endOffset, tickPaint);
-    }
-
-    // 3. Get exact time (including milliseconds for sweeping second hand)
-    final now = DateTime.now();
-    final double milli = now.millisecond.toDouble();
-    final double second = now.second + milli / 1000.0;
-    final double minute = now.minute + second / 60.0;
-    final double hour = (now.hour % 12) + minute / 60.0;
-
-    // 4. Draw Hour Hand (Bold, short, matte white)
-    final hourAngle = (hour * 30) * math.pi / 180 - math.pi / 2;
-    final hourHandLength = radius * 0.48;
-    final hourPaint = Paint()
-      ..color = Colors.white
-      ..strokeWidth = 4.5
-      ..strokeCap = StrokeCap.round;
-    
-    final hourEnd = Offset(
-      center.dx + hourHandLength * math.cos(hourAngle),
-      center.dy + hourHandLength * math.sin(hourAngle),
-    );
-    canvas.drawLine(center, hourEnd, hourPaint);
-
-    // 5. Draw Minute Hand (Sleek, medium-long, light grey/white)
-    final minuteAngle = (minute * 6) * math.pi / 180 - math.pi / 2;
-    final minuteHandLength = radius * 0.68;
-    final minutePaint = Paint()
-      ..color = const Color(0xFFDDDDDD)
-      ..strokeWidth = 2.5
-      ..strokeCap = StrokeCap.round;
-    
-    final minuteEnd = Offset(
-      center.dx + minuteHandLength * math.cos(minuteAngle),
-      center.dy + minuteHandLength * math.sin(minuteAngle),
-    );
-    canvas.drawLine(center, minuteEnd, minutePaint);
-
-    // 6. Draw Second Hand (Thin, sweeping orange, with tail)
-    final secondAngle = (second * 6) * math.pi / 180 - math.pi / 2;
-    final secondHandLength = radius * 0.78;
-    final secondTailLength = radius * 0.15;
-    
-    final secondPaint = Paint()
-      ..color = kAccent
-      ..strokeWidth = 1.5
-      ..strokeCap = StrokeCap.square;
-
-    final secondEnd = Offset(
-      center.dx + secondHandLength * math.cos(secondAngle),
-      center.dy + secondHandLength * math.sin(secondAngle),
-    );
-    final secondTail = Offset(
-      center.dx - secondTailLength * math.cos(secondAngle),
-      center.dy - secondTailLength * math.sin(secondAngle),
-    );
-    
-    canvas.drawLine(secondTail, secondEnd, secondPaint);
-
-    // 7. Draw Pinion Center Cap (Glowing orange center dot)
-    final centerCapPaint = Paint()
-      ..color = kAccent
-      ..style = PaintingStyle.fill;
-    canvas.drawCircle(center, 4.5, centerCapPaint);
-
-    // Draw tiny inner metal pin
-    final centerPinPaint = Paint()
-      ..color = Colors.white
-      ..style = PaintingStyle.fill;
-    canvas.drawCircle(center, 1.5, centerPinPaint);
-  }
-
-  @override
-  bool shouldRepaint(covariant AnalogClockPainter oldDelegate) => true;
-}
-
-// ─────────────────────────────────────────────
-// Audio Player Singleton
+// Audio Player Helper
 // ─────────────────────────────────────────────
 class AlarmAudio {
   static final AlarmAudio _instance = AlarmAudio._internal();
@@ -313,7 +38,7 @@ class AlarmAudio {
     if (_isPlaying) return;
     _player = AudioPlayer();
     try {
-      // Use a beep tone URL as fallback since we can't bundle assets easily
+      // Use loopable beep tone URL
       await _player!.setUrl(
         'https://www.soundjay.com/buttons/sounds/beep-07.mp3',
         preload: true,
@@ -322,43 +47,40 @@ class AlarmAudio {
       await _player!.play();
       _isPlaying = true;
     } catch (e) {
-      // If audio fails, still show the UI
-      _isPlaying = true;
+      debugPrint("Audio Error: $e");
+      _isPlaying = true; // Fallback so UI still behaves as alarm is active
     }
   }
 
   Future<void> stopAlarm() async {
     if (!_isPlaying) return;
-    await _player?.stop();
-    await _player?.dispose();
+    try {
+      await _player?.stop();
+      await _player?.dispose();
+    } catch (e) {
+      debugPrint("Error stopping audio: $e");
+    }
     _player = null;
     _isPlaying = false;
   }
 }
 
 // ─────────────────────────────────────────────
-// Main Entry
+// Main Entry Point
 // ─────────────────────────────────────────────
-void main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
     statusBarBrightness: Brightness.dark,
     statusBarIconBrightness: Brightness.light,
+    systemNavigationBarColor: kBackground,
+    systemNavigationBarIconBrightness: Brightness.light,
   ));
-  await initNotifications();
 
-  runApp(
-    ChangeNotifierProvider(
-      create: (_) => AlarmState(),
-      child: const AlarmProApp(),
-    ),
-  );
+  runApp(const AlarmProApp());
 }
 
-// ─────────────────────────────────────────────
-// App Root
-// ─────────────────────────────────────────────
 class AlarmProApp extends StatelessWidget {
   const AlarmProApp({super.key});
 
@@ -382,6 +104,40 @@ class AlarmProApp extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────
+// Shake Animation Widget
+// ─────────────────────────────────────────────
+class ShakeWidget extends AnimatedWidget {
+  final Widget child;
+  final bool isShaking;
+
+  const ShakeWidget({
+    super.key,
+    required Animation<double> animation,
+    required this.child,
+    required this.isShaking,
+  }) : super(listenable: animation);
+
+  @override
+  Widget build(BuildContext context) {
+    if (!isShaking) return child;
+    final animation = listenable as Animation<double>;
+    
+    // Create translation offsets and tilt based on fast oscillations
+    final double dx = math.sin(animation.value * math.pi * 12) * 7.0;
+    final double dy = math.cos(animation.value * math.pi * 9) * 5.0;
+    final double rotation = math.sin(animation.value * math.pi * 6) * 0.04;
+
+    return Transform.translate(
+      offset: Offset(dx, dy),
+      child: Transform.rotate(
+        angle: rotation,
+        child: child,
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────
 // Home Screen
 // ─────────────────────────────────────────────
 class AlarmHomeScreen extends StatefulWidget {
@@ -391,19 +147,16 @@ class AlarmHomeScreen extends StatefulWidget {
   State<AlarmHomeScreen> createState() => _AlarmHomeScreenState();
 }
 
-class _AlarmHomeScreenState extends State<AlarmHomeScreen>
-    with TickerProviderStateMixin {
+class _AlarmHomeScreenState extends State<AlarmHomeScreen> with TickerProviderStateMixin {
   late Timer _clockTimer;
-  late Timer _alarmCheckTimer;
-  late Timer _grainTimer;
+  Timer? _hapticTimer;
   DateTime _now = DateTime.now();
-  int _selectedNavIndex = 0;
-  int _grainSeed = 0;
-  bool _alarmFiring = false;
-  int? _firingAlarmId;
+  bool _alarmFiring = true;
+  bool _showSuccessOverlay = false;
 
   final AlarmAudio _audio = AlarmAudio();
 
+  late AnimationController _shakeController;
   late AnimationController _pulseController;
   late Animation<double> _pulseAnim;
 
@@ -412,230 +165,99 @@ class _AlarmHomeScreenState extends State<AlarmHomeScreen>
     super.initState();
     _requestPermissions();
 
-    _clockTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      setState(() {
-        _now = DateTime.now();
-      });
+    _clockTimer = Timer.periodic(const Duration(milliseconds: 100), (_) {
+      if (mounted) {
+        setState(() {
+          _now = DateTime.now();
+        });
+      }
     });
 
-    // Slightly change grain seed every 4 seconds for subtle animation
-    _grainTimer = Timer.periodic(const Duration(seconds: 4), (_) {
-      if (mounted) setState(() => _grainSeed = math.Random().nextInt(9999));
-    });
-
-    // Check alarm firing every 5 seconds
-    _alarmCheckTimer = Timer.periodic(const Duration(seconds: 5), (_) {
-      _checkAlarms();
-    });
-
+    // Pulse animation for alert neon lines
     _pulseController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 2000),
+      duration: const Duration(milliseconds: 1500),
     )..repeat(reverse: true);
 
-    _pulseAnim = Tween<double>(begin: 0.85, end: 1.0).animate(
+    _pulseAnim = Tween<double>(begin: 0.4, end: 1.0).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
+
+    // Violent shaking animation controller
+    _shakeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    )..repeat();
+
+    // Start Alarm instantly on app launch
+    _startPrankAlarm();
   }
 
   Future<void> _requestPermissions() async {
     if (kIsWeb) return;
     if (Platform.isAndroid || Platform.isIOS) {
-      await [
-        Permission.notification,
-        Permission.scheduleExactAlarm,
-      ].request();
+      await [Permission.notification].request();
     }
   }
 
-  void _checkAlarms() {
-    if (_alarmFiring) return;
-    final state = context.read<AlarmState>();
-    for (final alarm in state.alarms) {
-      if (!alarm.isActive) continue;
-      final now = DateTime.now();
-      if (alarm.time.hour == now.hour && alarm.time.minute == now.minute) {
-        _triggerAlarm(alarm.id);
-        break;
-      }
-    }
-  }
-
-  void _triggerAlarm(int alarmId) async {
-    if (_alarmFiring) return;
+  void _startPrankAlarm() async {
     setState(() {
       _alarmFiring = true;
-      _firingAlarmId = alarmId;
     });
 
-    HapticFeedback.heavyImpact();
+    // Play loop audio
     await _audio.startAlarm();
 
-    if (!mounted) return;
-    _showAlarmSheet();
-  }
-
-  void _showAlarmSheet() {
-    showModalBottomSheet(
-      context: context,
-      isDismissible: false,
-      enableDrag: false,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => AlarmFiringSheet(
-        onSnooze: () {
-          Navigator.pop(context);
-          _showSnoozePaywall();
-        },
-        onDismiss: () {
-          Navigator.pop(context);
-          _showDismissPaywall();
-        },
-      ),
-    );
-  }
-
-  void _showSnoozePaywall() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (_) => SnoozePaywallSheet(
-        onPay: () {
-          Navigator.pop(context);
-          _stopAlarm(snooze: true);
-        },
-        onCancel: () {
-          Navigator.pop(context);
-          // alarm keeps ringing
-          _showAlarmSheet();
-        },
-      ),
-    );
-  }
-
-  void _showDismissPaywall() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (_) => DismissPaywallSheet(
-        onSubscribe: () {
-          Navigator.pop(context);
-          _stopAlarm(snooze: false);
-        },
-        onLater: () {
-          Navigator.pop(context);
-          // alarm keeps ringing
-          _showAlarmSheet();
-        },
-      ),
-    );
-  }
-
-  void _stopAlarm({required bool snooze}) async {
-    await _audio.stopAlarm();
-    if (!mounted) return;
-    setState(() {
-      _alarmFiring = false;
+    // Loop physical vibration
+    _hapticTimer?.cancel();
+    _hapticTimer = Timer.periodic(const Duration(milliseconds: 400), (_) {
+      if (_alarmFiring) {
+        HapticFeedback.vibrate();
+      }
     });
+  }
 
-    if (snooze && _firingAlarmId != null) {
-      // Schedule a new alarm 5 minutes from now (show visual feedback)
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          backgroundColor: kCard,
-          behavior: SnackBarBehavior.floating,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          content: Text(
-            'Snoozed for 5 minutes. That\'ll be \$0.49.',
-            style: GoogleFonts.syne(color: Colors.white, fontSize: 13),
-          ),
-          action: SnackBarAction(label: 'OK', textColor: kAccent, onPressed: () {}),
-        ),
-      );
+  void _stopPrankAlarm() async {
+    _hapticTimer?.cancel();
+    await _audio.stopAlarm();
+    if (mounted) {
+      setState(() {
+        _alarmFiring = false;
+      });
     }
-    _firingAlarmId = null;
+  }
+
+  void _resetPrankAlarm() {
+    _startPrankAlarm();
+  }
+
+  void _showApplePay() {
+    showModalBottomSheet(
+      context: context,
+      isDismissible: true,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => ApplePaySheet(
+        onSuccess: () {
+          setState(() {
+            _showSuccessOverlay = true;
+          });
+        },
+      ),
+    );
   }
 
   @override
   void dispose() {
     _clockTimer.cancel();
-    _alarmCheckTimer.cancel();
-    _grainTimer.cancel();
+    _hapticTimer?.cancel();
+    _shakeController.dispose();
     _pulseController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: kBackground,
-      body: Stack(
-        children: [
-          // Grain texture
-          Positioned.fill(
-            child: CustomPaint(painter: GrainPainter(seed: _grainSeed)),
-          ),
-          // Main content
-          SafeArea(
-            child: Column(
-              children: [
-                _buildHeader(),
-                _buildClock(),
-                const SizedBox(height: 32),
-                _buildAlarmList(),
-                _buildAddButton(),
-                const Spacer(),
-                _buildBottomCaption(),
-                _buildBottomNav(),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildHeader() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            'RISE & GRIND.',
-            style: GoogleFonts.syne(
-              fontSize: 9,
-              letterSpacing: 4,
-              color: kDim,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: kAccent.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: kAccentBorder),
-            ),
-            child: Text(
-              'PRO',
-              style: GoogleFonts.syne(
-                fontSize: 8,
-                letterSpacing: 3,
-                color: kAccent,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildClock() {
     final h = _now.hour.toString().padLeft(2, '0');
     final m = _now.minute.toString().padLeft(2, '0');
     final s = _now.second.toString().padLeft(2, '0');
@@ -648,808 +270,996 @@ class _AlarmHomeScreenState extends State<AlarmHomeScreen>
     final dayStr =
         '${days[_now.weekday - 1]}, ${_now.day} ${months[_now.month - 1]} ${_now.year}';
 
-    return Padding(
-      padding: const EdgeInsets.only(top: 36),
-      child: Column(
+    return Scaffold(
+      body: Stack(
         children: [
-          // Glowing accent line
-          Container(
-            width: 32,
-            height: 2,
-            decoration: BoxDecoration(
-              color: kAccent,
-              borderRadius: BorderRadius.circular(1),
-              boxShadow: [
-                BoxShadow(color: kAccent.withValues(alpha: 0.6), blurRadius: 8),
-              ],
-            ),
-          ),
-          const SizedBox(height: 24),
-          const AnalogClock(),
-          const SizedBox(height: 24),
-          AnimatedBuilder(
-            animation: _pulseAnim,
-            builder: (context, _) => Opacity(
-              opacity: _alarmFiring ? _pulseAnim.value : 1.0,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.baseline,
-                textBaseline: TextBaseline.alphabetic,
-                children: [
-                  Text(
-                    '$h:$m',
-                    style: GoogleFonts.dmMono(
-                      fontSize: 72,
-                      fontWeight: FontWeight.w400,
-                      color: Colors.white,
-                      letterSpacing: -2,
-                      height: 1,
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    ':$s',
-                    style: GoogleFonts.dmMono(
-                      fontSize: 24,
-                      color: kMuted,
-                      letterSpacing: 0,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            dayStr,
-            style: GoogleFonts.syne(
-              fontSize: 11,
-              color: const Color(0xFF555555),
-              letterSpacing: 1,
-            ),
-          ),
-          if (_alarmFiring) ...[
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-              decoration: BoxDecoration(
-                color: kAccent.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: kAccent.withValues(alpha: 0.4)),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 6,
-                    height: 6,
-                    decoration: BoxDecoration(
-                      color: kAccent,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                            color: kAccent, blurRadius: 4, spreadRadius: 1),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'ALARM FIRING',
-                    style: GoogleFonts.syne(
-                      fontSize: 9,
-                      letterSpacing: 3,
-                      color: kAccent,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAlarmList() {
-    return Consumer<AlarmState>(
-      builder: (context, state, _) {
-        if (state.alarms.isEmpty) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-            child: Column(
-              children: [
-                Text(
-                  'No alarms set.',
-                  style: GoogleFonts.syne(color: kMuted, fontSize: 13),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Add one to start paying for your sleep.',
-                  style: GoogleFonts.syne(color: const Color(0xFF3A3A3A), fontSize: 11),
-                ),
-              ],
-            ),
-          );
-        }
-        return Expanded(
-          child: ListView.builder(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            itemCount: state.alarms.length,
-            itemBuilder: (_, i) => _buildAlarmCard(state.alarms[i], state),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildAlarmCard(AlarmModel alarm, AlarmState state) {
-    return GestureDetector(
-      onLongPress: () => _confirmDelete(alarm, state),
-      onDoubleTap: () => _triggerAlarm(alarm.id),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-        decoration: BoxDecoration(
-          color: kCard,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: alarm.isActive ? kAccentBorder : const Color(0xFF1E1E1E),
-          ),
-          boxShadow: alarm.isActive
-              ? [BoxShadow(color: kAccentGlow, blurRadius: 20, spreadRadius: 2)]
-              : [],
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    alarm.label,
-                    style: GoogleFonts.dmMono(
-                      fontSize: 32,
-                      color: alarm.isActive ? Colors.white : kMuted,
-                      fontWeight: FontWeight.w400,
-                      letterSpacing: -0.5,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    alarm.isActive ? 'ACTIVE — DOUBLE-TAP TO TEST FIRE' : 'INACTIVE',
-                    style: GoogleFonts.syne(
-                      fontSize: 9,
-                      letterSpacing: 2,
-                      color: alarm.isActive ? kAccent.withValues(alpha: 0.7) : kMuted,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            _buildToggle(alarm.isActive, () => state.toggleAlarm(alarm.id)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildToggle(bool isActive, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 250),
-        width: 52,
-        height: 28,
-        decoration: BoxDecoration(
-          color: isActive ? kAccent : kPill,
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: isActive
-              ? [BoxShadow(color: kAccent.withValues(alpha: 0.4), blurRadius: 10)]
-              : [],
-        ),
-        child: AnimatedAlign(
-          duration: const Duration(milliseconds: 250),
-          alignment: isActive ? Alignment.centerRight : Alignment.centerLeft,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 3),
+          // Background Gradient and Glowing spots
+          Positioned.fill(
             child: Container(
-              width: 22,
-              height: 22,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 4),
-                ],
+              decoration: const BoxDecoration(
+                gradient: RadialGradient(
+                  center: Alignment(0, -0.3),
+                  radius: 1.2,
+                  colors: [
+                    Color(0xFF13141F),
+                    Color(0xFF070709),
+                  ],
+                ),
               ),
             ),
           ),
-        ),
-      ),
-    );
-  }
 
-  void _confirmDelete(AlarmModel alarm, AlarmState state) {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: kCard,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text('Delete Alarm?',
-            style: GoogleFonts.syne(color: Colors.white, fontSize: 16)),
-        content: Text(
-          'Removing ${alarm.label}. This is free (for now).',
-          style: GoogleFonts.syne(color: kMuted, fontSize: 13),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Cancel',
-                style: GoogleFonts.syne(color: kMuted, fontSize: 13)),
-          ),
-          TextButton(
-            onPressed: () {
-              state.removeAlarm(alarm.id);
-              Navigator.pop(context);
-            },
-            child: Text('Delete',
-                style:
-                    GoogleFonts.syne(color: kAccent, fontSize: 13)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAddButton() {
-    return Consumer<AlarmState>(
-      builder: (context, state, _) {
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-          child: GestureDetector(
-            onTap: () async {
-              final picked = await showTimePicker(
-                context: context,
-                initialTime: TimeOfDay.now(),
-                builder: (context, child) {
-                  return Theme(
-                    data: ThemeData.dark().copyWith(
-                      colorScheme: const ColorScheme.dark(
-                        primary: kAccent,
-                        surface: kCard,
-                        onSurface: Colors.white,
+          // Orbital neon back glow behind clock
+          if (_alarmFiring)
+            Positioned(
+              top: MediaQuery.of(context).size.height * 0.12,
+              left: MediaQuery.of(context).size.width * 0.1,
+              right: MediaQuery.of(context).size.width * 0.1,
+              child: AnimatedBuilder(
+                animation: _pulseAnim,
+                builder: (context, _) => Container(
+                  width: 280,
+                  height: 280,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: kAccent.withOpacity(0.12 * _pulseAnim.value),
+                        blurRadius: 100,
+                        spreadRadius: 20,
                       ),
-                      timePickerTheme: TimePickerThemeData(
-                        backgroundColor: kCard,
-                        dialHandColor: kAccent,
-                        dialBackgroundColor: kPill,
-                        hourMinuteShape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12)),
-                        hourMinuteColor: kBackground,
-                        hourMinuteTextColor: Colors.white,
-                      ),
-                    ),
-                    child: child!,
-                  );
-                },
-              );
-              if (picked != null) {
-                state.addAlarm(picked);
-              }
-            },
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 15),
-              decoration: BoxDecoration(
-                color: Colors.transparent,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: kPill),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.add, color: kMuted, size: 18),
-                  const SizedBox(width: 8),
-                  Text(
-                    '+ Add Alarm',
-                    style: GoogleFonts.syne(
-                      fontSize: 13,
-                      color: kMuted,
-                      fontWeight: FontWeight.w500,
-                    ),
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
-          ),
-        );
-      },
-    );
-  }
 
-  Widget _buildBottomCaption() {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Text(
-        'PRODUCTIVITY. MONETIZED.',
-        style: GoogleFonts.syne(
-          fontSize: 9,
-          letterSpacing: 3,
-          color: kDimmer,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBottomNav() {
-    final items = [
-      _NavItem(icon: Icons.alarm, label: 'Alarms'),
-      _NavItem(icon: Icons.timer_outlined, label: 'Timer'),
-      _NavItem(icon: Icons.settings_outlined, label: 'Settings'),
-    ];
-
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFF0F0F0F),
-        border: Border(top: BorderSide(color: const Color(0xFF1C1C1C))),
-      ),
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: List.generate(
-          items.length,
-          (i) => GestureDetector(
-            onTap: () => setState(() => _selectedNavIndex = i),
-            child: AnimatedOpacity(
-              duration: const Duration(milliseconds: 200),
-              opacity: _selectedNavIndex == i ? 1.0 : 0.35,
+          // Main Layout
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 28.0, vertical: 20.0),
               child: Column(
-                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Icon(
-                    items[i].icon,
-                    color: _selectedNavIndex == i ? kAccent : Colors.white,
-                    size: 22,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    items[i].label,
-                    style: GoogleFonts.syne(
-                      fontSize: 9,
-                      letterSpacing: 1,
-                      color: _selectedNavIndex == i ? kAccent : Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  if (_selectedNavIndex == i)
-                    Container(
-                      width: 4,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: kAccent,
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                              color: kAccent, blurRadius: 6, spreadRadius: 1),
+                  const SizedBox(height: 10), // Safe Spacer instead of Header
+
+                  // Clock & Visual Status Section
+                  Column(
+                    children: [
+                      // Enormous 3D Shaking Clock
+                      ShakeWidget(
+                        animation: _shakeController,
+                        isShaking: _alarmFiring,
+                        child: const SizedBox(
+                          width: 250,
+                          height: 250,
+                          child: PremiumAnalogClock(),
+                        ),
+                      ),
+                      const SizedBox(height: 36),
+
+                      // Status Badge
+                      AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 400),
+                        child: _alarmFiring
+                            ? Container(
+                                key: const ValueKey('firing_badge'),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 14, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: kAccent.withOpacity(0.15),
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(color: kAccent.withOpacity(0.5)),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Container(
+                                      width: 8,
+                                      height: 8,
+                                      decoration: const BoxDecoration(
+                                        color: kAccent,
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      'ALARM ACTIVE',
+                                      style: GoogleFonts.syne(
+                                        fontSize: 10,
+                                        letterSpacing: 3,
+                                        color: kAccent,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            : Container(
+                                key: const ValueKey('silenced_badge'),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 14, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: kSuccess.withOpacity(0.15),
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(color: kSuccess.withOpacity(0.5)),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Container(
+                                      width: 8,
+                                      height: 8,
+                                      decoration: const BoxDecoration(
+                                        color: kSuccess,
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      'SILENCED — STATUS: PAID',
+                                      style: GoogleFonts.syne(
+                                        fontSize: 10,
+                                        letterSpacing: 2,
+                                        color: kSuccess,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Digital Display
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.baseline,
+                        textBaseline: TextBaseline.alphabetic,
+                        children: [
+                          Text(
+                            '$h:$m',
+                            style: GoogleFonts.dmMono(
+                              fontSize: 72,
+                              fontWeight: FontWeight.w300,
+                              color: Colors.white,
+                              letterSpacing: -3,
+                              height: 1,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            ':$s',
+                            style: GoogleFonts.dmMono(
+                              fontSize: 24,
+                              color: kMuted,
+                              fontWeight: FontWeight.w300,
+                            ),
+                          ),
                         ],
                       ),
-                    ),
+                      const SizedBox(height: 6),
+                      Text(
+                        dayStr,
+                        style: GoogleFonts.syne(
+                          fontSize: 12,
+                          color: kMuted,
+                          letterSpacing: 1.5,
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  // Bottom Action Button Section
+                  Column(
+                    children: [
+                      if (_alarmFiring)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 12.0),
+                          child: Text(
+                            "TO DEACTIVATE SOUND & VIBRATION",
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.syne(
+                              fontSize: 10,
+                              color: kMuted,
+                              letterSpacing: 1,
+                            ),
+                          ),
+                        ),
+                      _alarmFiring
+                          ? GestureDetector(
+                              onTap: _showApplePay,
+                              child: Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.symmetric(vertical: 18),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(16),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.white.withOpacity(0.12),
+                                      blurRadius: 25,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Text(
+                                      " ",
+                                      style: TextStyle(
+                                        color: Colors.black,
+                                        fontSize: 22,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    Text(
+                                      "Pay \$19.00 to Stop Alarm",
+                                      style: GoogleFonts.syne(
+                                        color: Colors.black,
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            )
+                          : Column(
+                              children: [
+                                Text(
+                                  "Payment Verified. Sweet Dreams!",
+                                  style: GoogleFonts.syne(
+                                    color: kSuccess,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                                TextButton.icon(
+                                  onPressed: _resetPrankAlarm,
+                                  icon: const Icon(Icons.restart_alt_rounded, size: 18),
+                                  label: Text(
+                                    "ARM ALARM AGAIN",
+                                    style: GoogleFonts.syne(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                      letterSpacing: 2,
+                                    ),
+                                  ),
+                                  style: TextButton.styleFrom(
+                                    foregroundColor: kMuted,
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 20, vertical: 12),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(30),
+                                      side: const BorderSide(color: kDim),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                      const SizedBox(height: 20),
+                    ],
+                  ),
                 ],
               ),
             ),
           ),
-        ),
+
+          // Success Overlay Screen
+          if (_showSuccessOverlay)
+            Positioned.fill(
+              child: SuccessScreen(
+                onClose: () {
+                  setState(() {
+                    _showSuccessOverlay = false;
+                  });
+                  _stopPrankAlarm();
+                },
+              ),
+            ),
+        ],
       ),
     );
   }
 }
 
-class _NavItem {
-  final IconData icon;
-  final String label;
-  _NavItem({required this.icon, required this.label});
-}
-
 // ─────────────────────────────────────────────
-// Alarm Firing Sheet (non-dismissible)
+// Premium Analog Clock Painter & Widget
 // ─────────────────────────────────────────────
-class AlarmFiringSheet extends StatefulWidget {
-  final VoidCallback onSnooze;
-  final VoidCallback onDismiss;
-
-  const AlarmFiringSheet({
-    super.key,
-    required this.onSnooze,
-    required this.onDismiss,
-  });
+class PremiumAnalogClock extends StatefulWidget {
+  const PremiumAnalogClock({super.key});
 
   @override
-  State<AlarmFiringSheet> createState() => _AlarmFiringSheetState();
+  State<PremiumAnalogClock> createState() => _PremiumAnalogClockState();
 }
 
-class _AlarmFiringSheetState extends State<AlarmFiringSheet>
+class _PremiumAnalogClockState extends State<PremiumAnalogClock>
     with SingleTickerProviderStateMixin {
-  late AnimationController _shakeCtrl;
-  late Animation<double> _shakeAnim;
-  late Timer _clockTimer;
-  DateTime _now = DateTime.now();
+  late AnimationController _ticker;
 
   @override
   void initState() {
     super.initState();
-    _shakeCtrl = AnimationController(
+    _ticker = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 500),
-    )..repeat(reverse: true);
-    _shakeAnim = Tween<double>(begin: -4, end: 4)
-        .animate(CurvedAnimation(parent: _shakeCtrl, curve: Curves.easeInOut));
-    _clockTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) setState(() => _now = DateTime.now());
-    });
+      duration: const Duration(seconds: 1),
+    )..repeat();
   }
 
   @override
   void dispose() {
-    _shakeCtrl.dispose();
-    _clockTimer.cancel();
+    _ticker.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final h = _now.hour.toString().padLeft(2, '0');
-    final m = _now.minute.toString().padLeft(2, '0');
+    return AnimatedBuilder(
+      animation: _ticker,
+      builder: (context, _) {
+        return CustomPaint(
+          painter: PremiumAnalogClockPainter(time: DateTime.now()),
+        );
+      },
+    );
+  }
+}
 
-    return Container(
-      decoration: const BoxDecoration(
-        color: Color(0xFF111111),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+class PremiumAnalogClockPainter extends CustomPainter {
+  final DateTime time;
+
+  PremiumAnalogClockPainter({required this.time});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = math.min(size.width, size.height) / 2;
+
+    // 1. Dark glowing drop shadow under the 3D bezel
+    final shadowPaint = Paint()
+      ..color = Colors.black.withOpacity(0.7)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 20);
+    canvas.drawCircle(center + const Offset(0, 12), radius - 4, shadowPaint);
+
+    // 2. Bezel outer rim (graduated charcoal/metallic gradient)
+    final bezelPaint = Paint()
+      ..shader = RadialGradient(
+        colors: [
+          Colors.grey.shade900,
+          Colors.black,
+        ],
+        stops: const [0.88, 1.0],
+      ).createShader(Rect.fromCircle(center: center, radius: radius))
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(center, radius, bezelPaint);
+
+    // Metallic highlight sheen on top-left edge
+    final bezelHighlight = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          Colors.white.withOpacity(0.18),
+          Colors.transparent,
+          Colors.black.withOpacity(0.5),
+        ],
+      ).createShader(Rect.fromCircle(center: center, radius: radius))
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(center, radius, bezelHighlight);
+
+    // Inner rim stroke
+    final innerRimPaint = Paint()
+      ..color = const Color(0xFF282A3A)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.0;
+    canvas.drawCircle(center, radius - 6, innerRimPaint);
+
+    // 3. Dial Plate Face (Concave feel gradient)
+    final dialPaint = Paint()
+      ..shader = RadialGradient(
+        center: const Alignment(-0.15, -0.15),
+        colors: [
+          const Color(0xFF1E2130),
+          const Color(0xFF090A0D),
+        ],
+      ).createShader(Rect.fromCircle(center: center, radius: radius - 8))
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(center, radius - 8, dialPaint);
+
+    // Glowing subtle outer rim on face
+    final dialFaceGlow = Paint()
+      ..shader = RadialGradient(
+        colors: [
+          kAccent.withOpacity(0.06),
+          Colors.transparent,
+        ],
+        stops: const [0.75, 1.0],
+      ).createShader(Rect.fromCircle(center: center, radius: radius - 8))
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(center, radius - 8, dialFaceGlow);
+
+    // 4. Tick markings (Hour and Minute bars)
+    final tickPaint = Paint()..strokeCap = StrokeCap.round;
+    for (int i = 0; i < 60; i++) {
+      final double angle = i * 6 * math.pi / 180;
+      final bool isHour = i % 5 == 0;
+      final double startRadius = radius * (isHour ? 0.73 : 0.81);
+      final double endRadius = radius * 0.86;
+
+      tickPaint.color = isHour
+          ? kAccent.withOpacity(0.85)
+          : Colors.white.withOpacity(0.2);
+      tickPaint.strokeWidth = isHour ? 3.0 : 1.2;
+
+      final startOffset = Offset(
+        center.dx + startRadius * math.cos(angle - math.pi / 2),
+        center.dy + startRadius * math.sin(angle - math.pi / 2),
+      );
+      final endOffset = Offset(
+        center.dx + endRadius * math.cos(angle - math.pi / 2),
+        center.dy + endRadius * math.sin(angle - math.pi / 2),
+      );
+      canvas.drawLine(startOffset, endOffset, tickPaint);
+    }
+
+    // 5. Get time components
+    final double milli = time.millisecond.toDouble();
+    final double second = time.second + milli / 1000.0;
+    final double minute = time.minute + second / 60.0;
+    final double hour = (time.hour % 12) + minute / 60.0;
+
+    // 6. Draw Hands with 3D shadows to simulate depth
+    final shadowOffset = const Offset(4, 5);
+
+    // Hour hand angle & coords
+    final hourAngle = (hour * 30) * math.pi / 180 - math.pi / 2;
+    final hourHandLength = radius * 0.44;
+    final handShadowPaint = Paint()
+      ..color = Colors.black.withOpacity(0.4)
+      ..strokeWidth = 6.0
+      ..strokeCap = StrokeCap.round;
+    canvas.drawLine(
+      center + shadowOffset,
+      Offset(
+        center.dx + shadowOffset.dx + hourHandLength * math.cos(hourAngle),
+        center.dy + shadowOffset.dy + hourHandLength * math.sin(hourAngle),
       ),
-      padding: const EdgeInsets.fromLTRB(28, 32, 28, 48),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Handle
-          Container(
-            width: 36,
-            height: 4,
-            decoration: BoxDecoration(
-              color: kPill,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          const SizedBox(height: 32),
+      handShadowPaint,
+    );
 
-          // Alarm icon with glow
-          AnimatedBuilder(
-            animation: _shakeAnim,
-            builder: (context, child) => Transform.translate(
-              offset: Offset(_shakeAnim.value, 0),
-              child: child,
-            ),
-            child: Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: kAccent.withValues(alpha: 0.12),
-                border: Border.all(color: kAccentBorder, width: 1.5),
-                boxShadow: [
-                  BoxShadow(color: kAccent.withValues(alpha: 0.3), blurRadius: 30),
-                ],
-              ),
-              child: const Icon(Icons.alarm, color: kAccent, size: 36),
-            ),
-          ),
+    // Minute hand angle & coords
+    final minuteAngle = (minute * 6) * math.pi / 180 - math.pi / 2;
+    final minuteHandLength = radius * 0.65;
+    final minHandShadowPaint = Paint()
+      ..color = Colors.black.withOpacity(0.3)
+      ..strokeWidth = 4.0
+      ..strokeCap = StrokeCap.round;
+    canvas.drawLine(
+      center + shadowOffset,
+      Offset(
+        center.dx + shadowOffset.dx + minuteHandLength * math.cos(minuteAngle),
+        center.dy + shadowOffset.dy + minuteHandLength * math.sin(minuteAngle),
+      ),
+      minHandShadowPaint,
+    );
 
-          const SizedBox(height: 24),
+    // Render Hour Hand (Clean silver-white)
+    final hourPaint = Paint()
+      ..color = Colors.white
+      ..strokeWidth = 6.0
+      ..strokeCap = StrokeCap.round;
+    canvas.drawLine(
+      center,
+      Offset(
+        center.dx + hourHandLength * math.cos(hourAngle),
+        center.dy + hourHandLength * math.sin(hourAngle),
+      ),
+      hourPaint,
+    );
 
-          Text(
-            '$h:$m',
-            style: GoogleFonts.dmMono(
-              fontSize: 56,
-              color: Colors.white,
-              fontWeight: FontWeight.w400,
-              letterSpacing: -1,
-            ),
-          ),
+    // Render Minute Hand (Greyish silver)
+    final minutePaint = Paint()
+      ..color = const Color(0xFFE5E6EA)
+      ..strokeWidth = 4.0
+      ..strokeCap = StrokeCap.round;
+    canvas.drawLine(
+      center,
+      Offset(
+        center.dx + minuteHandLength * math.cos(minuteAngle),
+        center.dy + minuteHandLength * math.sin(minuteAngle),
+      ),
+      minutePaint,
+    );
 
-          const SizedBox(height: 6),
+    // Second Hand Shadow
+    final secondAngle = (second * 6) * math.pi / 180 - math.pi / 2;
+    final secondHandLength = radius * 0.77;
+    final secondTailLength = radius * 0.16;
+    final secHandShadowPaint = Paint()
+      ..color = Colors.black.withOpacity(0.3)
+      ..strokeWidth = 2.0;
+    canvas.drawLine(
+      center + shadowOffset - Offset(secondTailLength * math.cos(secondAngle), secondTailLength * math.sin(secondAngle)),
+      center + shadowOffset + Offset(secondHandLength * math.cos(secondAngle), secondHandLength * math.sin(secondAngle)),
+      secHandShadowPaint,
+    );
 
-          Text(
-            'WAKE UP.',
-            style: GoogleFonts.syne(
-              fontSize: 11,
-              letterSpacing: 5,
-              color: kDim,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
+    // Render Second Hand (Sweeping neon red/orange)
+    final secondPaint = Paint()
+      ..color = kAccent
+      ..strokeWidth = 2.0
+      ..strokeCap = StrokeCap.round;
+    final secondEnd = Offset(
+      center.dx + secondHandLength * math.cos(secondAngle),
+      center.dy + secondHandLength * math.sin(secondAngle),
+    );
+    final secondTail = Offset(
+      center.dx - secondTailLength * math.cos(secondAngle),
+      center.dy - secondTailLength * math.sin(secondAngle),
+    );
+    canvas.drawLine(secondTail, secondEnd, secondPaint);
 
-          const SizedBox(height: 40),
+    // 7. Bevel center pinion cap (stacked layers)
+    final capShadow = Paint()
+      ..color = Colors.black.withOpacity(0.5)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2);
+    canvas.drawCircle(center + const Offset(1, 1), 7.0, capShadow);
 
-          // Two action buttons
-          Row(
-            children: [
-              Expanded(
-                child: _AlarmButton(
-                  label: 'SNOOZE',
-                  sublabel: '\$0.49',
-                  icon: Icons.snooze_rounded,
-                  onTap: widget.onSnooze,
-                  isPrimary: false,
+    canvas.drawCircle(center, 6.0, Paint()..color = const Color(0xFF2C2E3C));
+    canvas.drawCircle(center, 4.0, Paint()..color = kAccent);
+    canvas.drawCircle(center, 1.5, Paint()..color = Colors.white);
+
+    // 8. Domed Glass Lens sheen reflection
+    final glassPaint = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          Colors.white.withOpacity(0.08),
+          Colors.white.withOpacity(0.01),
+          Colors.transparent,
+        ],
+        stops: const [0.0, 0.45, 1.0],
+      ).createShader(Rect.fromCircle(center: center, radius: radius - 8))
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(center, radius - 8, glassPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant PremiumAnalogClockPainter oldDelegate) =>
+      oldDelegate.time != time;
+}
+
+// ─────────────────────────────────────────────
+// Simulated Apple Pay Sheet
+// ─────────────────────────────────────────────
+class ApplePaySheet extends StatefulWidget {
+  final VoidCallback onSuccess;
+
+  const ApplePaySheet({super.key, required this.onSuccess});
+
+  @override
+  State<ApplePaySheet> createState() => _ApplePaySheetState();
+}
+
+class _ApplePaySheetState extends State<ApplePaySheet> {
+  bool _isEnteringPin = false;
+  bool _isProcessing = false;
+  String _pin = "";
+
+  void _onKeyPress(String val) {
+    if (_pin.length >= 4) return;
+    setState(() {
+      _pin += val;
+    });
+    HapticFeedback.lightImpact();
+
+    if (_pin.length == 4) {
+      // Completed pin
+      Future.delayed(const Duration(milliseconds: 300), () {
+        setState(() {
+          _isEnteringPin = false;
+          _isProcessing = true;
+        });
+
+        // Mock 1.5s card verification & charge
+        Future.delayed(const Duration(milliseconds: 1800), () {
+          Navigator.pop(context); // close bottom sheet
+          widget.onSuccess();    // trigger success screen
+        });
+      });
+    }
+  }
+
+  void _onDelete() {
+    if (_pin.isNotEmpty) {
+      setState(() {
+        _pin = _pin.substring(0, _pin.length - 1);
+      });
+      HapticFeedback.lightImpact();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      decoration: const BoxDecoration(
+        color: Color(0xFF16161B),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      padding: EdgeInsets.only(
+        left: 24.0,
+        right: 24.0,
+        top: 20.0,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 34.0,
+      ),
+      child: AnimatedSize(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+        child: _isProcessing
+            ? _buildProcessingState()
+            : _isEnteringPin
+                ? _buildPinKeypad()
+                : _buildApplePayOptions(),
+      ),
+    );
+  }
+
+  // State 1: Normal Apple Pay Dialog showing Card, Total and Pay button
+  Widget _buildApplePayOptions() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Header
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            GestureDetector(
+              onTap: () => Navigator.pop(context),
+              child: Text(
+                "Cancel",
+                style: GoogleFonts.syne(
+                  color: Colors.blueAccent,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
                 ),
+              ),
+            ),
+            Row(
+              children: [
+                const Text(
+                  " ",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  "Pay",
+                  style: GoogleFonts.syne(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(width: 48), // Spacer symmetry
+          ],
+        ),
+        const SizedBox(height: 24),
+        const Divider(color: Color(0xFF2C2C32), height: 1),
+
+        // CARD ROW
+        _buildInfoRow(
+          title: "CARD",
+          contentWidget: Row(
+            children: [
+              Container(
+                width: 38,
+                height: 24,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(4),
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF5D5E6A), Color(0xFF2E2E3E)],
+                  ),
+                ),
+                alignment: Alignment.centerLeft,
+                padding: const EdgeInsets.only(left: 4),
+                child: const Text("", style: TextStyle(color: Colors.white, fontSize: 13)),
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: _AlarmButton(
-                  label: 'DISMISS',
-                  sublabel: '\$4.99/mo',
-                  icon: Icons.lock_rounded,
-                  onTap: widget.onDismiss,
-                  isPrimary: true,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      " Card (•••• 1984)",
+                      style: GoogleFonts.syne(fontSize: 13, fontWeight: FontWeight.w600),
+                    ),
+                    Text(
+                      "Apple Account Balance",
+                      style: GoogleFonts.syne(fontSize: 11, color: kMuted),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right, color: kMuted, size: 18),
+            ],
+          ),
+        ),
+        const Divider(color: Color(0xFF2C2C32), height: 1),
+
+        // BILLING ROW
+        _buildInfoRow(
+          title: "BILLING",
+          contentWidget: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  "Steve Jobs, 1 Infinite Loop, Cupertino, CA",
+                  style: GoogleFonts.syne(fontSize: 13, fontWeight: FontWeight.w500),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const Icon(Icons.chevron_right, color: kMuted, size: 18),
+            ],
+          ),
+        ),
+        const Divider(color: Color(0xFF2C2C32), height: 1),
+
+        // DELIVERY ROW
+        _buildInfoRow(
+          title: "METHOD",
+          contentWidget: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "Instant Alarm Silence",
+                      style: GoogleFonts.syne(fontSize: 13, fontWeight: FontWeight.w500),
+                    ),
+                    Text(
+                      "Delivered immediately",
+                      style: GoogleFonts.syne(fontSize: 11, color: kMuted),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
+        ),
+        const Divider(color: Color(0xFF2C2C32), height: 1),
 
-          const SizedBox(height: 16),
+        // AMOUNT ROW
+        _buildInfoRow(
+          title: "TOTAL",
+          contentWidget: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                "USD",
+                style: GoogleFonts.syne(fontSize: 13, color: kMuted),
+              ),
+              Text(
+                "\$19.00",
+                style: GoogleFonts.syne(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 32),
 
+        // Trigger PIN button
+        GestureDetector(
+          onTap: () {
+            setState(() {
+              _isEnteringPin = true;
+            });
+            HapticFeedback.mediumImpact();
+          },
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            decoration: BoxDecoration(
+              color: Colors.blueAccent.shade700,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              "Pay with Passcode",
+              style: GoogleFonts.syne(
+                color: Colors.white,
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Center(
+          child: Text(
+            "Double-click side button to confirm (Simulated)",
+            style: GoogleFonts.syne(color: kMuted, fontSize: 10),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // State 2: Passcode Entry Screen mimicking iOS Lock PIN input
+  Widget _buildPinKeypad() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // PIN Title
+        Text(
+          "Enter Device Passcode",
+          style: GoogleFonts.syne(
+            fontSize: 17,
+            fontWeight: FontWeight.w700,
+            color: Colors.white,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          "Enter your device password to approve Pay",
+          style: GoogleFonts.syne(
+            fontSize: 12,
+            color: kMuted,
+          ),
+        ),
+        const SizedBox(height: 24),
+
+        // Passcode indicators (4 circles)
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: List.generate(4, (index) {
+            bool active = _pin.length > index;
+            return Container(
+              margin: const EdgeInsets.symmetric(horizontal: 10),
+              width: 14,
+              height: 14,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: active ? Colors.white : Colors.transparent,
+                border: Border.all(color: Colors.white.withOpacity(0.6), width: 1.5),
+              ),
+            );
+          }),
+        ),
+        const SizedBox(height: 32),
+
+        // Keypad numbers 1-9, 0
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3,
+            childAspectRatio: 1.4,
+            mainAxisSpacing: 10,
+            crossAxisSpacing: 10,
+          ),
+          itemCount: 12,
+          itemBuilder: (context, index) {
+            // Keypad layout maps
+            if (index == 9) {
+              // Cancel
+              return TextButton(
+                onPressed: () {
+                  setState(() {
+                    _isEnteringPin = false;
+                    _pin = "";
+                  });
+                },
+                child: Text(
+                  "Back",
+                  style: GoogleFonts.syne(color: Colors.white, fontSize: 14),
+                ),
+              );
+            }
+            if (index == 11) {
+              // Delete
+              return IconButton(
+                onPressed: _onDelete,
+                icon: const Icon(Icons.backspace_outlined, color: Colors.white, size: 18),
+              );
+            }
+
+            final label = index == 10 ? "0" : "${index + 1}";
+            return GestureDetector(
+              onTap: () => _onKeyPress(label),
+              child: Container(
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Color(0xFF25252D),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  label,
+                  style: GoogleFonts.dmMono(
+                    fontSize: 26,
+                    fontWeight: FontWeight.w400,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  // State 3: Processing screen with custom spinner
+  Widget _buildProcessingState() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 40.0),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(
+            width: 36,
+            height: 36,
+            child: CircularProgressIndicator(
+              strokeWidth: 3.5,
+              color: Colors.blueAccent,
+            ),
+          ),
+          const SizedBox(height: 20),
           Text(
-            'Both options are premium features.',
+            "Contacting Issuer...",
             style: GoogleFonts.syne(
-              fontSize: 10,
-              color: const Color(0xFF3A3A3A),
-              letterSpacing: 0.5,
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            "Verifying simulated transaction",
+            style: GoogleFonts.syne(
+              fontSize: 11,
+              color: kMuted,
             ),
           ),
         ],
       ),
     );
   }
-}
 
-class _AlarmButton extends StatelessWidget {
-  final String label;
-  final String sublabel;
-  final IconData icon;
-  final VoidCallback onTap;
-  final bool isPrimary;
-
-  const _AlarmButton({
-    required this.label,
-    required this.sublabel,
-    required this.icon,
-    required this.onTap,
-    required this.isPrimary,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 18),
-        decoration: BoxDecoration(
-          color: isPrimary ? kAccent : kPill,
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: isPrimary
-              ? [BoxShadow(color: kAccent.withValues(alpha: 0.35), blurRadius: 20)]
-              : [],
-        ),
-        child: Column(
-          children: [
-            Icon(icon, color: isPrimary ? Colors.white : kMuted, size: 24),
-            const SizedBox(height: 6),
-            Text(
-              label,
+  Widget _buildInfoRow({required String title, required Widget contentWidget}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 15),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 80,
+            child: Text(
+              title,
               style: GoogleFonts.syne(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: isPrimary ? Colors.white : kMuted,
+                fontSize: 10,
+                color: kMuted,
+                fontWeight: FontWeight.w800,
                 letterSpacing: 1,
               ),
             ),
-            const SizedBox(height: 2),
-            Text(
-              sublabel,
-              style: GoogleFonts.dmMono(
-                fontSize: 10,
-                color: isPrimary
-                    ? Colors.white.withValues(alpha: 0.7)
-                    : const Color(0xFF444444),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────
-// Snooze Paywall Sheet
-// ─────────────────────────────────────────────
-class SnoozePaywallSheet extends StatelessWidget {
-  final VoidCallback onPay;
-  final VoidCallback onCancel;
-
-  const SnoozePaywallSheet({
-    super.key,
-    required this.onPay,
-    required this.onCancel,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return _PaywallBase(
-      title: "Snooze? That'll cost you.",
-      badge: '\$0.49',
-      subtitle:
-          '5 minutes of extra sleep costs \$0.49.\nSmall price for big dreams. 😴',
-      children: [
-        _PayButton(
-          label: 'Pay with Apple Pay',
-          icon: Icons.apple,
-          isDark: true,
-          onTap: onPay,
-        ),
-        const SizedBox(height: 12),
-        _GhostButton(
-          label: 'Cancel (alarm keeps ringing)',
-          onTap: onCancel,
-        ),
-      ],
-    );
-  }
-}
-
-// ─────────────────────────────────────────────
-// Dismiss Paywall Sheet
-// ─────────────────────────────────────────────
-class DismissPaywallSheet extends StatelessWidget {
-  final VoidCallback onSubscribe;
-  final VoidCallback onLater;
-
-  const DismissPaywallSheet({
-    super.key,
-    required this.onSubscribe,
-    required this.onLater,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return _PaywallBase(
-      title: '🔒 Pro Feature',
-      badge: '\$4.99/mo',
-      subtitle:
-          'Dismissing alarms is available in AlarmPro.\nUpgrade to make the noise stop. Forever.',
-      children: [
-        _PayButton(
-          label: 'Subscribe Now — \$4.99/month',
-          icon: null,
-          isDark: false,
-          onTap: onSubscribe,
-        ),
-        const SizedBox(height: 12),
-        _GhostButton(
-          label: 'Maybe Later (alarm keeps ringing 🔔)',
-          onTap: onLater,
-        ),
-      ],
-    );
-  }
-}
-
-// ─────────────────────────────────────────────
-// Shared Paywall Base
-// ─────────────────────────────────────────────
-class _PaywallBase extends StatelessWidget {
-  final String title;
-  final String badge;
-  final String subtitle;
-  final List<Widget> children;
-
-  const _PaywallBase({
-    required this.title,
-    required this.badge,
-    required this.subtitle,
-    required this.children,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        color: Color(0xFF1A1A1A),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
-      padding: const EdgeInsets.fromLTRB(24, 20, 24, 40),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Handle
-          Center(
-            child: Container(
-              width: 36,
-              height: 4,
-              decoration: BoxDecoration(
-                color: kPill,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
           ),
-          const SizedBox(height: 28),
-
-          // Title row with badge
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Text(
-                  title,
-                  style: GoogleFonts.syne(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
-                    height: 1.25,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: kAccent,
-                  borderRadius: BorderRadius.circular(8),
-                  boxShadow: [
-                    BoxShadow(color: kAccent.withValues(alpha: 0.4), blurRadius: 12),
-                  ],
-                ),
-                child: Text(
-                  badge,
-                  style: GoogleFonts.dmMono(
-                    fontSize: 12,
-                    color: Colors.white,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 12),
-
-          Text(
-            subtitle,
-            style: GoogleFonts.syne(
-              fontSize: 12,
-              color: kMuted,
-              height: 1.6,
-            ),
-          ),
-
-          const SizedBox(height: 28),
-
-          ...children,
-
-          const SizedBox(height: 16),
-
-          Center(
-            child: Text(
-              'By tapping, you agree to our Terms and that you are desperate.',
-              textAlign: TextAlign.center,
-              style: GoogleFonts.syne(
-                fontSize: 9,
-                color: const Color(0xFF2E2E2E),
-                letterSpacing: 0.3,
-              ),
-            ),
-          ),
+          Expanded(child: contentWidget),
         ],
       ),
     );
@@ -1457,53 +1267,142 @@ class _PaywallBase extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────
-// Pay Button (white bg, dark text)
+// Success / Thank You Screen Overlay
 // ─────────────────────────────────────────────
-class _PayButton extends StatelessWidget {
-  final String label;
-  final IconData? icon;
-  final bool isDark;
-  final VoidCallback onTap;
+class SuccessScreen extends StatefulWidget {
+  final VoidCallback onClose;
 
-  const _PayButton({
-    required this.label,
-    required this.icon,
-    required this.isDark,
-    required this.onTap,
-  });
+  const SuccessScreen({super.key, required this.onClose});
+
+  @override
+  State<SuccessScreen> createState() => _SuccessScreenState();
+}
+
+class _SuccessScreenState extends State<SuccessScreen> with SingleTickerProviderStateMixin {
+  late AnimationController _animController;
+  late Animation<double> _scaleAnimation;
+  late Animation<double> _checkAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _animController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1000),
+    );
+
+    _scaleAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _animController,
+        curve: const Interval(0.0, 0.5, curve: Curves.elasticOut),
+      ),
+    );
+
+    _checkAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _animController,
+        curve: const Interval(0.4, 1.0, curve: Curves.easeInOut),
+      ),
+    );
+
+    _animController.forward();
+
+    // Trigger success system beep and sound
+    HapticFeedback.lightImpact();
+    Future.delayed(const Duration(milliseconds: 150), () {
+      HapticFeedback.lightImpact();
+    });
+  }
+
+  @override
+  void dispose() {
+    _animController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        decoration: BoxDecoration(
-          color: isDark ? Colors.white : kAccent,
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: isDark
-              ? [
-                  BoxShadow(
-                      color: Colors.white.withValues(alpha: 0.08), blurRadius: 20),
-                ]
-              : [
-                  BoxShadow(color: kAccent.withValues(alpha: 0.4), blurRadius: 20),
-                ],
-        ),
-        child: Row(
+    return Container(
+      color: Colors.black.withOpacity(0.92),
+      alignment: Alignment.center,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32.0),
+        child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            if (icon != null) ...[
-              Icon(icon, color: isDark ? Colors.black : Colors.white, size: 20),
-              const SizedBox(width: 10),
-            ],
+            // Circular green success checkmark
+            ScaleTransition(
+              scale: _scaleAnimation,
+              child: Container(
+                width: 100,
+                height: 100,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: kSuccess,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Color(0x3334C759),
+                      blurRadius: 30,
+                      spreadRadius: 8,
+                    ),
+                  ],
+                ),
+                alignment: Alignment.center,
+                child: AnimatedBuilder(
+                  animation: _checkAnimation,
+                  builder: (context, child) {
+                    return CustomPaint(
+                      size: const Size(44, 44),
+                      painter: CheckmarkPainter(progress: _checkAnimation.value),
+                    );
+                  },
+                ),
+              ),
+            ),
+            const SizedBox(height: 36),
+
+            // Success Text
             Text(
-              label,
+              "Payment Successful",
               style: GoogleFonts.syne(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: isDark ? Colors.black : Colors.white,
+                fontSize: 24,
+                fontWeight: FontWeight.w800,
+                color: Colors.white,
+                letterSpacing: -0.5,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              "We have successfully received your \$19.00 payment.\nThe alarm will be silenced immediately.",
+              textAlign: TextAlign.center,
+              style: GoogleFonts.syne(
+                fontSize: 13,
+                color: kMuted,
+                height: 1.6,
+              ),
+            ),
+            const SizedBox(height: 48),
+
+            // Close button
+            GestureDetector(
+              onTap: widget.onClose,
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E1F29),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFF2C2E3C)),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  "Dismiss Alarm",
+                  style: GoogleFonts.syne(
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
               ),
             ),
           ],
@@ -1513,32 +1412,43 @@ class _PayButton extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────
-// Ghost / Cancel Button
-// ─────────────────────────────────────────────
-class _GhostButton extends StatelessWidget {
-  final String label;
-  final VoidCallback onTap;
+class CheckmarkPainter extends CustomPainter {
+  final double progress;
 
-  const _GhostButton({required this.label, required this.onTap});
+  CheckmarkPainter({required this.progress});
 
   @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 14),
-        alignment: Alignment.center,
-        child: Text(
-          label,
-          style: GoogleFonts.syne(
-            fontSize: 13,
-            color: const Color(0xFF444444),
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-      ),
-    );
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.white
+      ..strokeWidth = 5.0
+      ..strokeCap = StrokeCap.round
+      ..style = PaintingStyle.stroke;
+
+    final path = Path();
+    
+    // Starting point of checkmark relative to box (44x44)
+    path.moveTo(size.width * 0.22, size.height * 0.52);
+    
+    // Corner point
+    path.lineTo(size.width * 0.44, size.height * 0.72);
+    
+    // End point
+    path.lineTo(size.width * 0.78, size.height * 0.32);
+
+    // Compute progress of the path
+    final pms = path.computeMetrics();
+    final drawingPath = Path();
+    
+    for (final pm in pms) {
+      final length = pm.length * progress;
+      drawingPath.addPath(pm.extractPath(0, length), Offset.zero);
+    }
+
+    canvas.drawPath(drawingPath, paint);
   }
+
+  @override
+  bool shouldRepaint(covariant CheckmarkPainter oldDelegate) =>
+      oldDelegate.progress != progress;
 }
